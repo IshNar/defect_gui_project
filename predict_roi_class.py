@@ -25,7 +25,7 @@ class ROIClassifier:
         self.model.to(self.device)
         self.model.eval()
 
-        self.transform = ROICropClassifierDataset("dataset", "mask").transform
+        self.transform = ROICropClassifierDataset("dataset", os.path.join("dataset", "Mask")).transform
 
     def predict(self, image_path, mask_path):
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -48,5 +48,5 @@ class ROIClassifier:
 
 if __name__ == "__main__":
     clf = ROIClassifier()
-    label = clf.predict("dataset/Scratch/Dust10.png", "mask/Scratch/Dust10_mask.png")
+    label = clf.predict("dataset/Scratch/Dust10.png", os.path.join("dataset", "Mask", "Dust10_mask.png"))
     print("Predicted:", label)

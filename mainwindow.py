@@ -145,8 +145,8 @@ class MainWindow(QMainWindow):
         image_path = self.preview_label.image_path
         base = os.path.basename(image_path)
         name, _ = os.path.splitext(base)
-        class_folder = os.path.basename(os.path.dirname(image_path))
-        mask_path = os.path.join("mask", class_folder, f"{name}_mask.png")
+      # Masks are stored in a single folder under the dataset
+        mask_path = os.path.join("dataset", "Mask", f"{name}_mask.png")
 
         if not os.path.exists(mask_path):
             log(self.log_view, f"❌ Mask not found: {mask_path}")
@@ -165,6 +165,8 @@ class MainWindow(QMainWindow):
         self.roi_list.clear()
         dataset_root = "dataset"
         for class_name in os.listdir(dataset_root):
+            if class_name == "Mask":
+                continue  # Mask 폴더는 제외
             class_path = os.path.join(dataset_root, class_name)
             if os.path.isdir(class_path):
                 for fname in os.listdir(class_path):

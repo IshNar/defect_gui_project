@@ -23,6 +23,9 @@ class ROICropClassifierDataset(Dataset):
                 if fname.lower().endswith((".png", ".jpg", ".bmp")):
                     img_path = os.path.join(image_dir, fname)
                     mask_path = os.path.join(mask_dir, fname.replace(".png", "_mask.png"))
+                    if not os.path.exists(mask_path):
+                        # fallback to a flat mask directory
+                        mask_path = os.path.join(mask_root, fname.replace(".png", "_mask.png"))
                     if os.path.exists(mask_path):
                         self.samples.append((img_path, mask_path, idx))
 
@@ -40,8 +43,13 @@ class ROICropClassifierDataset(Dataset):
         img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
 
+
+        # 이미지 크기 확인 후 resize
+        if img.shape[0] < mask.shape[0] or img.shape[1] < mask.shape[1]:
+            img = cv2.resize(img, (mask.shape[1], mask.shape[0]), interpolation=cv2.INTER_LINEAR)
+
         # Extract largest contour
-        cnts, _ = cv2.findContours((mask > 127).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cnts, _ = cv2.findContours((mask > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not cnts:
             raise ValueError(f"No valid contour found in mask: {mask_path}")
 

@@ -11,7 +11,9 @@ from roi_classifier_dataset import ROICropClassifierDataset
 from predict_roi_class import ROIClassifier, CLASS_NAMES
 
 
-def evaluate_roi_classifier(image_root="dataset", mask_root="mask", log_fn=print):
+def evaluate_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
+    if mask_root is None:
+        mask_root = os.path.join(image_root, "Mask")
     clf = ROIClassifier()
     y_true = []
     y_pred = []

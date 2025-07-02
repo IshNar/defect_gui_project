@@ -14,7 +14,9 @@ def get_model(num_classes):
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     return model
 
-def train_roi_classifier(image_root="dataset", mask_root="mask", log_fn=print):
+def train_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
+    if mask_root is None:
+        mask_root = os.path.join(image_root, "Mask")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset = ROICropClassifierDataset(image_root, mask_root)
     loader = DataLoader(dataset, batch_size=16, shuffle=True)
