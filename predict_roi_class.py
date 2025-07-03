@@ -21,7 +21,16 @@ class ROIClassifier:
         if not os.path.exists(weight_path):
             raise FileNotFoundError(f"Model file not found: {weight_path}")
         
-        self.model.load_state_dict(torch.load(weight_path, map_location=self.device))
+        state = torch.load(weight_path, map_location=self.device)
+        # If the stored classifier was trained with a different number of
+        # classes, discard its final layer weights to avoid shape mismatch.
+        fc_w = state.get("fc.weight")
+        if fc_w is not None and fc_w.shape[0] != len(CLASS_NAMES):
+            state.pop("fc.weight", None)
+            state.pop("fc.bias", None)
+            self.model.load_state_dict(state, strict=False)
+        else:
+            self.model.load_state_dict(state)
         self.model.to(self.device)
         self.model.eval()
 
@@ -31,7 +40,13 @@ class ROIClassifier:
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
 
-        cnts, _ = cv2.findContours((mask > 127).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # 이미지 크기 확인 후 resize
+        if img.shape[0] < mask.shape[0] or img.shape[1] < mask.shape[1]:
+            img = cv2.resize(img, (mask.shape[1], mask.shape[0]), interpolation=cv2.INTER_LINEAR)
+
+
+        cnts, _ = cv2.findContours((mask > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not cnts:
             return "No Defect"
 

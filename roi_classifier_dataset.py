@@ -13,7 +13,10 @@ class ROICropClassifierDataset(Dataset):
         self.class_map = {}  # folder name to class ID
         self.target_size = target_size
 
-        class_folders = sorted(os.listdir(image_root))
+        # Ignore the "Mask" folder which stores segmentation masks only
+        class_folders = [d for d in sorted(os.listdir(image_root))
+                         if os.path.isdir(os.path.join(image_root, d)) and d != "Mask"]
+        
         for idx, cls in enumerate(class_folders):
             self.class_map[cls] = idx
             image_dir = os.path.join(image_root, cls)
