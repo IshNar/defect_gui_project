@@ -7,6 +7,11 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 import numpy as np
 
+# Fixed order of classes used across training and inference
+CLASS_NAMES = ["Scratch", "Dent", "Dust"]
+
+
+
 class ROICropClassifierDataset(Dataset):
     def __init__(self, image_root, mask_root, target_size=(224, 224)):
         self.samples = []
@@ -14,10 +19,19 @@ class ROICropClassifierDataset(Dataset):
         self.target_size = target_size
 
         # Ignore the "Mask" folder which stores segmentation masks only
-        class_folders = [d for d in sorted(os.listdir(image_root))
+        #기존의 class_forders 부분은 내림차순으로 정렬해 해당 class indexing을 잡는데 실제 CLASS_NAMES는 다른 순서여서 학습 후에도 결과가 달랐던 것..
+        # class_folders = [d for d in sorted(os.listdir(image_root))
+        #                  if os.path.isdir(os.path.join(image_root, d)) and d != "Mask"]
+        # Folders containing class images
+         # Folders containing class images
+        class_folders = [d for d in os.listdir(image_root)
                          if os.path.isdir(os.path.join(image_root, d)) and d != "Mask"]
         
-        for idx, cls in enumerate(class_folders):
+        
+        # Assign indices following CLASS_NAMES order
+        for idx, cls in enumerate(CLASS_NAMES):
+            if cls not in class_folders:
+                continue
             self.class_map[cls] = idx
             image_dir = os.path.join(image_root, cls)
             mask_dir = os.path.join(mask_root, cls)
@@ -59,8 +73,18 @@ class ROICropClassifierDataset(Dataset):
         largest = max(cnts, key=cv2.contourArea)
         x, y, w, h = cv2.boundingRect(largest)
         roi = img[y:y+h, x:x+w]
+        mask_roi = mask[y:y+h, x:x+w]
+
+        # Shape features
+        area_ratio = cv2.contourArea(largest) / float(w * h)
+        aspect_ratio = float(w) / h if h > 0 else 0.0
+
+        # Brightness features
+        brightness_mean = roi.mean() / 255.0
+        brightness_std = roi.std() / 255.0
 
         roi = cv2.resize(roi, self.target_size)
         tensor = self.transform(roi)
+        features = torch.tensor([area_ratio, aspect_ratio, brightness_mean, brightness_std], dtype=torch.float32)
 
-        return tensor, class_id
+        return tensor, features, class_id

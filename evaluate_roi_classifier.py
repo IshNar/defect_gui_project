@@ -7,9 +7,8 @@ from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 import cv2
-from roi_classifier_dataset import ROICropClassifierDataset
-from predict_roi_class import ROIClassifier, CLASS_NAMES
-
+from roi_classifier_dataset import ROICropClassifierDataset, CLASS_NAMES
+from predict_roi_class import ROIClassifier
 
 def evaluate_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
     if mask_root is None:

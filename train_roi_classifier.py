@@ -8,11 +8,29 @@ import torchvision.models as models
 from roi_classifier_dataset import ROICropClassifierDataset
 import os
 
+
+class ResNetWithFeatures(nn.Module):
+    def __init__(self, num_classes, num_features=4):
+        super().__init__()
+        self.cnn = models.resnet18(weights=None)
+        self.cnn.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        num_ftrs = self.cnn.fc.in_features
+        self.cnn.fc = nn.Identity()
+        self.fc = nn.Linear(num_ftrs + num_features, num_classes)
+
+    def forward(self, x, feats):
+        x = self.cnn(x)
+        x = torch.flatten(x, 1)
+        x = torch.cat([x, feats], dim=1)
+        return self.fc(x)
+
+
 def get_model(num_classes):
-    model = models.resnet18(weights=None)
-    model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)  # grayscale input
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
-    return model
+    # model = models.resnet18(weights=None)
+    # model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)  # grayscale input
+    # model.fc = nn.Linear(model.fc.in_features, num_classes)
+    # return model
+    return ResNetWithFeatures(num_classes)
 
 def train_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
     if mask_root is None:
@@ -35,9 +53,9 @@ def train_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
         correct = 0
         total = 0
 
-        for images, labels in loader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
+        for images, feats, labels in loader:
+            images, feats, labels = images.to(device), feats.to(device), labels.to(device)
+            outputs = model(images, feats)
             loss = criterion(outputs, labels)
 
             optimizer.zero_grad()

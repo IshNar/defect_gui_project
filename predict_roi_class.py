@@ -6,17 +6,32 @@ import torch.nn as nn
 import torchvision.models as models
 import cv2
 import numpy as np
-from roi_classifier_dataset import ROICropClassifierDataset
+from roi_classifier_dataset import ROICropClassifierDataset, CLASS_NAMES
 
-CLASS_NAMES = ["Scratch", "Dent", "Dust"]
+# CLASS_NAMES = ["Scratch", "Dent", "Dust"]
+
+
+class ResNetWithFeatures(nn.Module):
+    def __init__(self, num_classes, num_features=4):
+        super().__init__()
+        self.cnn = models.resnet18(weights=None)
+        self.cnn.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        num_ftrs = self.cnn.fc.in_features
+        self.cnn.fc = nn.Identity()
+        self.fc = nn.Linear(num_ftrs + num_features, num_classes)
+
+    def forward(self, x, feats):
+        x = self.cnn(x)
+        x = torch.flatten(x, 1)
+        x = torch.cat([x, feats], dim=1)
+        return self.fc(x)
+
+
 
 class ROIClassifier:
     def __init__(self, weight_path="roi_classifier.pth"):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = models.resnet18(weights=None)
-        self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.model.fc = nn.Linear(self.model.fc.in_features, len(CLASS_NAMES))
-        
+        self.model = ResNetWithFeatures(len(CLASS_NAMES))
         # ✅ 파일 존재 확인 + 안전한 로딩
         if not os.path.exists(weight_path):
             raise FileNotFoundError(f"Model file not found: {weight_path}")
@@ -53,11 +68,18 @@ class ROIClassifier:
         largest = max(cnts, key=cv2.contourArea)
         x, y, w, h = cv2.boundingRect(largest)
         roi = img[y:y+h, x:x+w]
+        mask_roi = mask[y:y+h, x:x+w]
+        area_ratio = cv2.contourArea(largest) / float(w * h)
+        aspect_ratio = float(w) / h if h > 0 else 0.0
+        brightness_mean = roi.mean() / 255.0
+        brightness_std = roi.std() / 255.0
+
         roi = cv2.resize(roi, (224, 224))
         tensor = self.transform(roi).unsqueeze(0).to(self.device)
-
+        feats = torch.tensor([[area_ratio, aspect_ratio, brightness_mean, brightness_std]], dtype=torch.float32).to(self.device)
+        
         with torch.no_grad():
-            output = self.model(tensor)
+            output = self.model(tensor, feats)
             pred_class = output.argmax(dim=1).item()
             return CLASS_NAMES[pred_class]
 
