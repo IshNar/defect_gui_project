@@ -1,6 +1,7 @@
 # roi_classifier_dataset.py
 
 import os
+import math
 import cv2
 import torch
 from torch.utils.data import Dataset
@@ -75,16 +76,49 @@ class ROICropClassifierDataset(Dataset):
         roi = img[y:y+h, x:x+w]
         mask_roi = mask[y:y+h, x:x+w]
 
+        # # Shape features
+        # area_ratio = cv2.contourArea(largest) / float(w * h)
+        # aspect_ratio = float(w) / h if h > 0 else 0.0
+
+        # # Brightness features
+        # brightness_mean = roi.mean() / 255.0
+        # brightness_std = roi.std() / 255.0
+
+        roi = cv2.resize(roi, self.target_size)
+
         # Shape features
-        area_ratio = cv2.contourArea(largest) / float(w * h)
+        area_ratio = cv2.contourArea(largest) / float(w * h) if w * h > 0 else 0.0
         aspect_ratio = float(w) / h if h > 0 else 0.0
 
-        # Brightness features
+        if len(largest) >= 5:
+            (center, axes, angle) = cv2.fitEllipse(largest)
+            major_axis = max(axes)
+            minor_axis = min(axes)
+        else:
+            major_axis = float(max(w, h))
+            minor_axis = float(min(w, h))
+
+        elongation = major_axis / minor_axis if minor_axis > 0 else 0.0
+        perimeter = cv2.arcLength(largest, True)
+        area = cv2.contourArea(largest)
+        circularity = 4 * math.pi * area / (perimeter ** 2) if perimeter > 0 else 0.0
+
         brightness_mean = roi.mean() / 255.0
         brightness_std = roi.std() / 255.0
 
-        roi = cv2.resize(roi, self.target_size)
-        tensor = self.transform(roi)
-        features = torch.tensor([area_ratio, aspect_ratio, brightness_mean, brightness_std], dtype=torch.float32)
+        features = np.array([
+            area_ratio,
+            aspect_ratio,
+            brightness_mean,
+            brightness_std,
+            major_axis,
+            minor_axis,
+            elongation,
+            circularity,
+        ], dtype=np.float32)
 
-        return tensor, features, class_id
+        
+        tensor = self.transform(roi)
+        feature_tensor = torch.from_numpy(features)
+
+        return tensor, feature_tensor, class_id

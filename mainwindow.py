@@ -22,7 +22,7 @@ class MainWindow(QMainWindow):
         self.loaded_image_path = None
 
         self.setWindowTitle("Defect ROI Labeling Tool")
-        self.resize(800, 600)
+        self.resize(1000, 800)
 
         self.roi_list = QListWidget()
         self.preview_label = BrushImageViewer(self)

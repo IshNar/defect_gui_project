@@ -25,12 +25,19 @@ class ResNetWithFeatures(nn.Module):
         return self.fc(x)
 
 
-def get_model(num_classes):
-    # model = models.resnet18(weights=None)
-    # model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)  # grayscale input
-    # model.fc = nn.Linear(model.fc.in_features, num_classes)
-    # return model
-    return ResNetWithFeatures(num_classes)
+class ROIResNetWithFeatures(nn.Module):
+    def __init__(self, num_classes, feature_dim):
+        super().__init__()
+        self.cnn = models.resnet18(weights=None)
+        self.cnn.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        num_ftrs = self.cnn.fc.in_features
+        self.cnn.fc = nn.Identity()
+        self.classifier = nn.Linear(num_ftrs + feature_dim, num_classes)
+
+    def forward(self, x, feats):
+        x = self.cnn(x)
+        x = torch.cat([x, feats], dim=1)
+        return self.classifier(x)
 
 def train_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
     if mask_root is None:
@@ -40,7 +47,8 @@ def train_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
     loader = DataLoader(dataset, batch_size=16, shuffle=True)
 
     num_classes = len(dataset.class_map)
-    model = get_model(num_classes).to(device)
+    feature_dim = 8
+    model = ROIResNetWithFeatures(num_classes, feature_dim).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
@@ -72,6 +80,12 @@ def train_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
 
     torch.save(model.state_dict(), "roi_classifier.pth")
     log_fn("✅ Saved: roi_classifier.pth")
+
+    #ONNX 저장(외부 export)
+    dummy_input = torch.randn(1, 1, 244, 244).to(device)
+    torch.onnx.export(model, dummy_input, "roi_classifier.onnx",
+                  input_names=["input"], output_names=["output"])
+    log_fn("✅ Saved: roi_classifier.onnx")
 
 def run_train_from_ui(log_fn):
     train_roi_classifier(log_fn=log_fn)

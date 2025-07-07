@@ -1,6 +1,7 @@
 # predict_roi_class.py
 
 import os
+import math
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -11,41 +12,32 @@ from roi_classifier_dataset import ROICropClassifierDataset, CLASS_NAMES
 # CLASS_NAMES = ["Scratch", "Dent", "Dust"]
 
 
-class ResNetWithFeatures(nn.Module):
-    def __init__(self, num_classes, num_features=4):
+class ROIResNetWithFeatures(nn.Module):
+    def __init__(self, num_classes, feature_dim):
         super().__init__()
         self.cnn = models.resnet18(weights=None)
         self.cnn.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         num_ftrs = self.cnn.fc.in_features
         self.cnn.fc = nn.Identity()
-        self.fc = nn.Linear(num_ftrs + num_features, num_classes)
+        self.classifier = nn.Linear(num_ftrs + feature_dim, num_classes)
 
     def forward(self, x, feats):
         x = self.cnn(x)
-        x = torch.flatten(x, 1)
         x = torch.cat([x, feats], dim=1)
-        return self.fc(x)
+        return self.classifier(x)
 
 
 
 class ROIClassifier:
     def __init__(self, weight_path="roi_classifier.pth"):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = ResNetWithFeatures(len(CLASS_NAMES))
+        self.model = ROIResNetWithFeatures(len(CLASS_NAMES), feature_dim=8)
         # ✅ 파일 존재 확인 + 안전한 로딩
         if not os.path.exists(weight_path):
             raise FileNotFoundError(f"Model file not found: {weight_path}")
         
         state = torch.load(weight_path, map_location=self.device)
-        # If the stored classifier was trained with a different number of
-        # classes, discard its final layer weights to avoid shape mismatch.
-        fc_w = state.get("fc.weight")
-        if fc_w is not None and fc_w.shape[0] != len(CLASS_NAMES):
-            state.pop("fc.weight", None)
-            state.pop("fc.bias", None)
-            self.model.load_state_dict(state, strict=False)
-        else:
-            self.model.load_state_dict(state)
+        self.model.load_state_dict(state)
         self.model.to(self.device)
         self.model.eval()
 
@@ -75,11 +67,43 @@ class ROIClassifier:
         brightness_std = roi.std() / 255.0
 
         roi = cv2.resize(roi, (224, 224))
+
+        area_ratio = cv2.contourArea(largest) / float(w * h) if w * h > 0 else 0.0
+        aspect_ratio = float(w) / h if h > 0 else 0.0
+
+        if len(largest) >= 5:
+            (_, axes, _) = cv2.fitEllipse(largest)
+            major_axis = max(axes)
+            minor_axis = min(axes)
+        else:
+            major_axis = float(max(w, h))
+            minor_axis = float(min(w, h))
+
+        elongation = major_axis / minor_axis if minor_axis > 0 else 0.0
+        perimeter = cv2.arcLength(largest, True)
+        area = cv2.contourArea(largest)
+        circularity = 4 * math.pi * area / (perimeter ** 2) if perimeter > 0 else 0.0
+
+        brightness_mean = roi.mean() / 255.0
+        brightness_std = roi.std() / 255.0
+
+        features = np.array([
+            area_ratio,
+            aspect_ratio,
+            brightness_mean,
+            brightness_std,
+            major_axis,
+            minor_axis,
+            elongation,
+            circularity,
+        ], dtype=np.float32)
+
+
         tensor = self.transform(roi).unsqueeze(0).to(self.device)
-        feats = torch.tensor([[area_ratio, aspect_ratio, brightness_mean, brightness_std]], dtype=torch.float32).to(self.device)
-        
+        feat_tensor = torch.from_numpy(features).unsqueeze(0).to(self.device)
+
         with torch.no_grad():
-            output = self.model(tensor, feats)
+            output = self.model(tensor, feat_tensor)
             pred_class = output.argmax(dim=1).item()
             return CLASS_NAMES[pred_class]
 
