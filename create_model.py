@@ -12,6 +12,7 @@ NUM_CLASSES = 3
 EPOCHS = 1  # 테스트 목적
 BATCH_SIZE = 8
 
+
 # 간단한 CNN 모델
 model = nn.Sequential(
     nn.Conv2d(1, 16, 3, 1, 1), nn.ReLU(), nn.MaxPool2d(2),

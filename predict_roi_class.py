@@ -80,7 +80,7 @@ class ROIClassifier:
             minor_axis = float(min(w, h))
 
         elongation = major_axis / minor_axis if minor_axis > 0 else 0.0
-        perimeter = cv2.arcLength(largest, True)
+        perimeter = cv2.arcLength(largest, True) #둘레
         area = cv2.contourArea(largest)
         circularity = 4 * math.pi * area / (perimeter ** 2) if perimeter > 0 else 0.0
 

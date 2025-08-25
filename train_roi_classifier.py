@@ -81,10 +81,13 @@ def train_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
     torch.save(model.state_dict(), "roi_classifier.pth")
     log_fn("✅ Saved: roi_classifier.pth")
 
-    #ONNX 저장(외부 export)
-    dummy_input = torch.randn(1, 1, 244, 244).to(device)
-    torch.onnx.export(model, dummy_input, "roi_classifier.onnx",
-                  input_names=["input"], output_names=["output"])
+    #ONNX 저장(외부 export) 실제 img와 feature는 넣을필요 없고 Dummy로 넣어도 됌.. 
+    dummy_img = torch.randn(1, 1, 224, 224).to(device)
+    dummy_feats = torch.randn(1, 8).to(device)  # feature_dim=8에 맞춤
+    torch.onnx.export(
+        model, (dummy_img, dummy_feats), "roi_classifier.onnx",
+        input_names=["image", "feats"], output_names=["output"]
+    )
     log_fn("✅ Saved: roi_classifier.onnx")
 
 def run_train_from_ui(log_fn):
