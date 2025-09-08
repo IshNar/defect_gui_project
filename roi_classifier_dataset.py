@@ -1,5 +1,11 @@
 # roi_classifier_dataset.py
+"""
+Defines a PyTorch Dataset for loading ROI images and their corresponding masks.
 
+This script provides a `ROICropClassifierDataset` class that loads images
+and masks, extracts the largest contour as the ROI, computes shape and
+brightness features, and returns the ROI tensor, feature tensor, and class ID.
+"""
 import os
 import math
 import cv2
@@ -14,17 +20,26 @@ CLASS_NAMES = ["Scratch", "Dent", "Dust"]
 
 
 class ROICropClassifierDataset(Dataset):
+    """A PyTorch Dataset for ROI classification.
+
+    This dataset loads images and masks, finds the largest contour in the mask
+    to define the ROI, extracts the ROI from the image, computes a set of
+    features from the ROI, and returns the processed ROI tensor, feature
+    tensor, and class label.
+    """
     def __init__(self, image_root, mask_root, target_size=(224, 224)):
+        """Initializes the ROICropClassifierDataset.
+
+        Args:
+            image_root: The root directory of the dataset.
+            mask_root: The directory containing the masks.
+            target_size: The target size for the ROI image.
+        """
         self.samples = []
         self.class_map = {}  # folder name to class ID
         self.target_size = target_size
 
-        # Ignore the "Mask" folder which stores segmentation masks only
-        #기존의 class_forders 부분은 내림차순으로 정렬해 해당 class indexing을 잡는데 실제 CLASS_NAMES는 다른 순서여서 학습 후에도 결과가 달랐던 것..
-        # class_folders = [d for d in sorted(os.listdir(image_root))
-        #                  if os.path.isdir(os.path.join(image_root, d)) and d != "Mask"]
         # Folders containing class images
-         # Folders containing class images
         class_folders = [d for d in os.listdir(image_root)
                          if os.path.isdir(os.path.join(image_root, d)) and d != "Mask"]
         
@@ -53,9 +68,22 @@ class ROICropClassifierDataset(Dataset):
         ])
 
     def __len__(self):
+        """Returns the number of samples in the dataset."""
         return len(self.samples)
 
     def __getitem__(self, idx):
+        """
+        Gets a sample from the dataset.
+
+        Args:
+            idx (int): The index of the sample to retrieve.
+
+        Returns:
+            tuple: A tuple containing the ROI tensor, feature tensor, and class ID.
+
+        Raises:
+            ValueError: If no valid contour is found in the mask.
+        """
         img_path, mask_path, class_id = self.samples[idx]
 
         img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)

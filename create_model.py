@@ -1,4 +1,10 @@
 # create_model.py
+"""
+Creates, trains, and exports a simple CNN model for defect classification.
+
+This script defines a simple CNN, trains it for one epoch on the dataset,
+and then exports the trained model to ONNX format.
+"""
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
@@ -6,14 +12,14 @@ from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 import os
 
-# 하이퍼파라미터
+# Hyperparameters
 IMG_SIZE = 224
 NUM_CLASSES = 3
-EPOCHS = 1  # 테스트 목적
+EPOCHS = 1  # For testing purposes
 BATCH_SIZE = 8
 
 
-# 간단한 CNN 모델
+# A simple CNN model
 model = nn.Sequential(
     nn.Conv2d(1, 16, 3, 1, 1), nn.ReLU(), nn.MaxPool2d(2),
     nn.Conv2d(16, 32, 3, 1, 1), nn.ReLU(), nn.MaxPool2d(2),
@@ -22,18 +28,18 @@ model = nn.Sequential(
     nn.Linear(128, NUM_CLASSES)
 )
 
-# 전처리
+# Preprocessing
 transform = transforms.Compose([
     transforms.Grayscale(),
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor()
 ])
 
-# 데이터셋 로딩
+# Load the dataset
 dataset = ImageFolder("dataset", transform=transform)
 loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-# 학습 (1 Epoch만)
+# Train the model for one epoch
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.CrossEntropyLoss()
 for epoch in range(EPOCHS):
@@ -44,9 +50,9 @@ for epoch in range(EPOCHS):
         loss.backward()
         optimizer.step()
 
-# ONNX로 저장
+# Export the model to ONNX format
 dummy_input = torch.randn(1, 1, 224, 224)
 os.makedirs("model", exist_ok=True)
 torch.onnx.export(model, dummy_input, "model/defect_classifier.onnx",
                   input_names=["input"], output_names=["output"])
-print("✅ 모델 저장 완료: model/defect_classifier.onnx")
+print("✅ Model saved: model/defect_classifier.onnx")

@@ -1,5 +1,11 @@
 # predict_roi_class.py
+"""
+Uses a trained ROI classifier to predict the class of a defect.
 
+This script defines the `ROIClassifier` class, which loads the saved model
+and provides a `predict` method to classify a given ROI image and its
+corresponding mask.
+"""
 import os
 import math
 import torch
@@ -13,7 +19,19 @@ from roi_classifier_dataset import ROICropClassifierDataset, CLASS_NAMES
 
 
 class ROIResNetWithFeatures(nn.Module):
+    """A ResNet model for ROI classification with additional features.
+
+    This class is a duplicate of the one in `train_roi_classifier.py` and is
+    needed to load the saved model.
+    """
     def __init__(self, num_classes, feature_dim):
+        """
+        Initializes the ROIResNetWithFeatures model.
+
+        Args:
+            num_classes (int): The number of output classes.
+            feature_dim (int): The dimension of the feature vector.
+        """
         super().__init__()
         self.cnn = models.resnet18(weights=None)
         self.cnn.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -22,6 +40,7 @@ class ROIResNetWithFeatures(nn.Module):
         self.classifier = nn.Linear(num_ftrs + feature_dim, num_classes)
 
     def forward(self, x, feats):
+        """Defines the forward pass of the model."""
         x = self.cnn(x)
         x = torch.cat([x, feats], dim=1)
         return self.classifier(x)
@@ -29,10 +48,19 @@ class ROIResNetWithFeatures(nn.Module):
 
 
 class ROIClassifier:
+    """A classifier for identifying defect types from ROI images."""
     def __init__(self, weight_path="roi_classifier.pth"):
+        """Initializes the ROIClassifier.
+
+        Args:
+            weight_path (str): The path to the saved model weights.
+
+        Raises:
+            FileNotFoundError: If the weight file is not found.
+        """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = ROIResNetWithFeatures(len(CLASS_NAMES), feature_dim=8)
-        # ✅ 파일 존재 확인 + 안전한 로딩
+
         if not os.path.exists(weight_path):
             raise FileNotFoundError(f"Model file not found: {weight_path}")
         
@@ -44,6 +72,15 @@ class ROIClassifier:
         self.transform = ROICropClassifierDataset("dataset", os.path.join("dataset", "Mask")).transform
 
     def predict(self, image_path, mask_path):
+        """Predicts the class of a defect in an image.
+
+        Args:
+            image_path: The path to the input image.
+            mask_path: The path to the corresponding mask.
+
+        Returns:
+            The predicted class name as a string.
+        """
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
 
@@ -80,7 +117,7 @@ class ROIClassifier:
             minor_axis = float(min(w, h))
 
         elongation = major_axis / minor_axis if minor_axis > 0 else 0.0
-        perimeter = cv2.arcLength(largest, True) #둘레
+        perimeter = cv2.arcLength(largest, True)
         area = cv2.contourArea(largest)
         circularity = 4 * math.pi * area / (perimeter ** 2) if perimeter > 0 else 0.0
 

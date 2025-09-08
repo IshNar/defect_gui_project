@@ -1,5 +1,10 @@
 # evaluate_roi_classifier.py
+"""
+Evaluates the performance of the trained ROI classifier.
 
+This script iterates through the dataset, generates predictions for each sample,
+and then computes and displays a classification report and a confusion matrix.
+"""
 import os
 import torch
 import numpy as np
@@ -11,6 +16,14 @@ from roi_classifier_dataset import ROICropClassifierDataset, CLASS_NAMES
 from predict_roi_class import ROIClassifier
 
 def evaluate_roi_classifier(image_root="dataset", mask_root=None, log_fn=print):
+    """Evaluates the ROI classifier and logs the results.
+
+    Args:
+        image_root: The root directory of the dataset.
+        mask_root: The directory containing the masks. If None, it is
+          assumed to be a sub-directory of `image_root` named "Mask".
+        log_fn: A function to use for logging progress and results.
+    """
     if mask_root is None:
         mask_root = os.path.join(image_root, "Mask")
     clf = ROIClassifier()

@@ -8,21 +8,43 @@ import cv2
 import os
 
 class BrushImageViewer(QLabel):
+    """A custom QLabel widget for displaying images and drawing masks.
+
+    This widget allows users to load an image, draw on it with a brush of
+    adjustable size and class, and save the resulting mask. It handles mouse
+    events for drawing and updates the view to show the base image with a
+    semi-transparent mask overlay.
+    """
     def __init__(self, parent=None):
+        """Initializes the BrushImageViewer.
+
+        Args:
+            parent: The parent widget.
+        """
         super().__init__(parent)
-        self.setFixedSize(512, 512)  # 브러시 작업 공간 크기 (수정 가능)
+        self.setFixedSize(512, 512)
         self.setStyleSheet("border: 1px solid black")
-        self.image = None             # 원본 이미지
-        self.mask = None              # 마스크 (uint8: class index)
+        self.image = None
+        self.mask = None
         self.image_path = None
         self.drawing = False
         self.brush_radius = 8
-        self.current_class = 1  # default: 1 = Scratch
+        self.current_class = 1
 
     def set_class(self, class_id):
+        """Sets the current class for drawing.
+
+        Args:
+            class_id: The integer ID of the class.
+        """
         self.current_class = class_id
 
     def load_image(self, path):
+        """Loads an image from the given path.
+
+        Args:
+            path: The file path of the image to load.
+        """
         self.image_path = path
         self.cv_img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         self.cv_img = cv2.resize(self.cv_img, (self.width(), self.height()))
@@ -40,41 +62,51 @@ class BrushImageViewer(QLabel):
             self.update_view()
 
     def mousePressEvent(self, event):
+        """Handles mouse press events to start drawing."""
         if event.button() == Qt.LeftButton:
             self.drawing = True
             self.draw_at(event.pos())
 
     def mouseMoveEvent(self, event):
+        """Handles mouse move events to draw on the mask."""
         if self.drawing:
             self.draw_at(event.pos())
 
     def mouseReleaseEvent(self, event):
+        """Handles mouse release events to stop drawing."""
         if event.button() == Qt.LeftButton:
             self.drawing = False
 
     def draw_at(self, pos):
+        """Draws a circle on the mask at the given position."""
         x, y = pos.x(), pos.y()
         cv2.circle(self.mask, (x, y), self.brush_radius, self.current_class, -1)
         self.update_view()
 
     def update_view(self):
+        """Updates the display with the image and mask overlay."""
         if self.image is None:
             return
 
         base = cv2.cvtColor(self.cv_img.copy(), cv2.COLOR_GRAY2BGR)
         overlay = base.copy()
 
-        red_color = (0, 0, 255)  # OpenCV는 BGR 순서
+        red_color = (0, 0, 255)  # Red in BGR
         mask_region = (self.mask > 0)
         overlay[mask_region] = red_color
 
-        alpha = 0.4  # 투명도 (0.0~1.0)
+        alpha = 0.4  # Transparency
         blended = cv2.addWeighted(overlay, alpha, base, 1 - alpha, 0)
 
         qimg = QImage(blended.data, blended.shape[1], blended.shape[0], blended.strides[0], QImage.Format_BGR888)
         self.setPixmap(QPixmap.fromImage(qimg))
 
     def save_current_mask(self):
+        """Saves the current mask to a file.
+
+        Returns:
+            The path where the mask was saved, or None if no image is loaded.
+        """
         if self.image_path is None:
             return None
         os.makedirs(os.path.join("dataset", "Mask"), exist_ok=True)
@@ -85,14 +117,25 @@ class BrushImageViewer(QLabel):
         return path
 
     def load_mask(self, path):
+        """Loads a mask from the given path.
+
+        Args:
+            path: The file path of the mask to load.
+        """
         self.mask = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         self.mask = cv2.resize(self.mask, (self.width(), self.height()), interpolation=cv2.INTER_NEAREST)
         self.update_view()
 
     def clear_mask(self):
+        """Clears the current mask."""
         self.mask[:] = 0
         self.update_view()
 
     def set_brush_radius(self, radius):
+        """Sets the brush radius.
+
+        Args:
+            radius: The new radius for the brush.
+        """
         self.brush_radius = radius
         self.update()
